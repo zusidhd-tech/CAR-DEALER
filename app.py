@@ -10,7 +10,8 @@ from urllib.parse import parse_qs, urlparse
 
 import search_autodev
 import search_clcauto
-from search_cars import compare_market, open_database, record_prices
+import valuation
+from search_cars import open_database, record_prices
 
 ROOT = Path(__file__).resolve().parent
 DATABASE = ROOT / "car_history.sqlite3"
@@ -76,8 +77,11 @@ def search_listings(data):
     cars.extend(car for car in clc_cars if car.get("vin") not in seen_vins)
     market = list(auto_cars) + list(clc_market)
     incomplete = clc_incomplete or auto_incomplete
+    benchmarks, benchmark_info = valuation.load_data()
+    if benchmark_info["warning"]:
+        warnings.append(benchmark_info["warning"])
     for car in cars:
-        compare_market(car, market, incomplete)
+        valuation.assess(car, market, benchmarks)
         car["history_id"] = car["vin"]
     db = open_database(DATABASE)
     try:
@@ -87,7 +91,7 @@ def search_listings(data):
     return {"cars": sorted(cars, key=lambda c: c["price"]), "market_count": len(market),
             "incomplete": incomplete, "warnings": warnings,
             "sources": {"Auto.dev": len(auto_cars), "CLCAuto": len(clc_cars)},
-            "auto_total": auto_total}
+            "auto_total": auto_total, "benchmark": benchmark_info}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -124,7 +128,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(404, {"error": "Not found"})
 
     def do_POST(self):
-        if self.path != "/api/search":
+        if self.path not in ("/api/search", "/api/forcar"):
             self.respond(404, {"error": "Not found"})
             return
         # Only this app's own page may initiate a search and write observations.
@@ -134,6 +138,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
+            if self.path == "/api/forcar":
+                if not 0 < length <= valuation.MAX_BYTES or self.headers.get_content_type() != "text/csv":
+                    raise ValueError("请选择不超过 5 MB 的 CSV 文件。")
+                count = valuation.save_csv(self.rfile.read(length))
+                self.respond(200, {"rows": count})
+                return
             if not 0 < length <= 8192 or self.headers.get_content_type() != "application/json":
                 raise ValueError("请求格式无效。")
             data = json.loads(self.rfile.read(length))
