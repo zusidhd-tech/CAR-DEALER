@@ -2,6 +2,7 @@
 import argparse
 import json
 import sqlite3
+from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +16,15 @@ ROOT = Path(__file__).resolve().parent
 DATABASE = ROOT / "car_history.sqlite3"
 
 
+def year_in_range(car, min_year, max_year):
+    try:
+        year = int(car.get("year"))
+    except (TypeError, ValueError):
+        return min_year is None and max_year is None
+    return ((min_year is None or year >= min_year) and
+            (max_year is None or year <= max_year))
+
+
 def search_listings(data):
     location = str(data.get("location", "Chicago")).strip()
     make = str(data.get("make", "")).strip()
@@ -26,18 +36,29 @@ def search_listings(data):
         max_miles = int(data.get("max_miles", 90000))
         pages = int(data.get("pages", 5))
         distance = int(data.get("distance", 50))
+        min_year = int(data["min_year"]) if str(data.get("min_year", "")).strip() else None
+        max_year = int(data["max_year"]) if str(data.get("max_year", "")).strip() else None
     except (ValueError, TypeError):
-        raise ValueError("价格、里程、距离和页数必须是整数。") from None
+        raise ValueError("年份、价格、里程、距离和页数必须是整数。") from None
     zip_code = str(data.get("zip", "60601")).strip()
     if not (zip_code.isdigit() and len(zip_code) == 5):
         raise ValueError("ZIP code 必须是 5 位数字。")
     if not (1 <= max_price <= 10000000 and 1 <= max_miles <= 10000000 and
             1 <= pages <= 10 and 1 <= distance <= 500):
         raise ValueError("价格、里程和距离必须大于零，页数必须在 1 到 10 之间。")
+    latest_year = date.today().year + 1
+    if ((min_year is not None and not 1886 <= min_year <= latest_year) or
+            (max_year is not None and not 1886 <= max_year <= latest_year)):
+        raise ValueError(f"年份必须在 1886 到 {latest_year} 之间。")
+    if min_year is not None and max_year is not None and min_year > max_year:
+        raise ValueError("最低年份不能晚于最高年份。")
     args = SimpleNamespace(location=location, make=make, model=model, pages=pages,
                            zip=zip_code, distance=distance,
-                           max_price=max_price, max_miles=max_miles)
+                           max_price=max_price, max_miles=max_miles,
+                           min_year=min_year, max_year=max_year,
+                           latest_year=latest_year)
     clc_market, clc_incomplete = search_clcauto.search(args)
+    clc_market = [car for car in clc_market if year_in_range(car, min_year, max_year)]
     clc_cars = [car for car in clc_market if car["price"] <= max_price and
             isinstance(car["miles"], (int, float)) and not isinstance(car["miles"], bool)
             and 0 <= car["miles"] <= max_miles]

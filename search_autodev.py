@@ -84,6 +84,8 @@ def search(args):
         params["vehicle.make"] = args.make
     if args.model:
         params["vehicle.model"] = args.model
+    if args.min_year is not None or args.max_year is not None:
+        params["vehicle.year"] = f"{args.min_year or 1886}-{args.max_year or args.latest_year}"
     cars = {}
     total = None
     for page in range(1, args.pages + 1):
