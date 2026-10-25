@@ -6,9 +6,22 @@
 .\.venv\Scripts\python.exe .\app.py
 ```
 
-然后在浏览器打开 http://127.0.0.1:8000 。界面使用免费的 CLCAuto 数据，无需 API key。填写城市、品牌、车型、预算和里程后点击搜索；结果卡片显示标价、市场比较、降价，以及可点击的价格历史。按 Ctrl+C 停止服务。端口被占用时可用 `--port 8001`，并打开对应端口。
+然后在浏览器打开 http://127.0.0.1:8000 。界面会合并 Auto.dev 与免费的 CLCAuto 数据。填写 ZIP、半径、城市、品牌、车型、预算和里程后点击搜索；结果卡片显示数据来源、标价、市场比较、降价，以及可点击的价格历史。按 Ctrl+C 停止服务。端口被占用时可用 `--port 8001`，并打开对应端口。
 
 每次成功搜索都会把目标车价格保存在项目目录的 `car_history.sqlite3`。首次记录没有此前的降价；只有再次搜索到同一车源时才能检测变化。页面不会后台定时搜索，也不会主动推送通知。
+
+## 更大的实时车源：Auto.dev
+
+Auto.dev 免费套餐无需信用卡，每月提供 1,000 次调用，免费层每页最多返回 20 辆。登录 Auto.dev 后在 API Keys 页面创建 key，并存入 Windows 用户环境：
+
+```powershell
+[Environment]::SetEnvironmentVariable("AUTODEV_API_KEY", "你的API_KEY", "User")
+```
+
+重新打开 PowerShell 后启动网页。应用也会读取 Windows 用户环境中的 key，因此通常无需重启 Codex。key 只在 Python 服务端使用，不会发送到浏览器或写入 Git。Auto.dev 认证失败或额度用尽时，页面会显示原因并继续使用 CLCAuto 结果。
+
+界面中的“搜索页数”控制 Auto.dev 请求量：免费层每页 20 辆，默认 5 页即最多获取 100 辆，每次搜索最多消耗 5 次调用。返回总数大于已获取数量时，结果会标记为样本不完整。
+
 # 免费搜索：CLCAuto
 
 `search_clcauto.py` 使用 [CLCAuto 公开只读接口](https://www.clcauto.com/en/developers)，无需 API key 或信用卡。它是免费的商业平台接口，并非开源数据库。接口支持按城市文字筛选，不支持按 ZIP 和半径筛选；芝加哥郊区可能不包含在结果中。只保留 dealer、美元和英里车源，匿名接口没有完整 VIN，因此使用平台车源 ID 跟踪价格，同一车辆重新刊登后可能无法关联。数据覆盖有限，不能代表整个市场。
