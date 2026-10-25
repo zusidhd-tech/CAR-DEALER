@@ -1,3 +1,29 @@
+# 本地网页界面
+
+在项目文件夹的 PowerShell 中运行：
+
+```powershell
+.\.venv\Scripts\python.exe .\app.py
+```
+
+然后在浏览器打开 http://127.0.0.1:8000 。界面使用免费的 CLCAuto 数据，无需 API key。填写城市、品牌、车型、预算和里程后点击搜索；结果卡片显示标价、市场比较、降价，以及可点击的价格历史。按 Ctrl+C 停止服务。端口被占用时可用 `--port 8001`，并打开对应端口。
+
+每次成功搜索都会把目标车价格保存在项目目录的 `car_history.sqlite3`。首次记录没有此前的降价；只有再次搜索到同一车源时才能检测变化。页面不会后台定时搜索，也不会主动推送通知。
+# 免费搜索：CLCAuto
+
+`search_clcauto.py` 使用 [CLCAuto 公开只读接口](https://www.clcauto.com/en/developers)，无需 API key 或信用卡。它是免费的商业平台接口，并非开源数据库。接口支持按城市文字筛选，不支持按 ZIP 和半径筛选；芝加哥郊区可能不包含在结果中。只保留 dealer、美元和英里车源，匿名接口没有完整 VIN，因此使用平台车源 ID 跟踪价格，同一车辆重新刊登后可能无法关联。数据覆盖有限，不能代表整个市场。
+
+```powershell
+.\.venv\Scripts\python.exe .\search_clcauto.py
+.\.venv\Scripts\python.exe .\search_clcauto.py --make Toyota --model Corolla --max-price 20000 --max-miles 90000 --location Chicago --pages 5
+```
+
+默认搜索 Chicago，价格不超过 $18,000、里程不超过 90,000 英里的 dealer 车辆。`--pages` 默认最多 5 页，每页 100 条；若结果超过上限，市场比较标记为不完整。结果存入 `chicago_clcauto.csv`，历史存入 `car_history.sqlite3`。每次运行比较同一车源上次记录，终端和 CSV 会显示降价。查看历史时使用 `search_cars.py --history CLC:车源ID`。公开接口限制每 IP 每分钟 20 次，频繁运行可能被限流。
+
+市场中位数使用同一地点、车型和配置，相差不超过一年和 15,000 英里的至少 5 辆车。样本较少时不会估价；它是本平台在售标价的粗略比较，不是成交价或完整市场估值。首次搜索没有以前的历史。具体选项见 `search_clcauto.py --help`。
+
+---
+
 # Chicago 二手车搜索
 
 通过 [MarketCheck](https://docs.marketcheck.com/docs/api/cars/inventory/inventory-search) 搜索附近 dealer 的在售二手车，导出 CSV、记录价格历史、提示降价，并估算相似车辆的标价中位数。

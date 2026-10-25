@@ -54,3 +54,27 @@ class CarSearchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class CLCAutoTests(unittest.TestCase):
+    def test_anonymous_listing_and_seller_filter(self):
+        import search_clcauto as clc
+        item = {"id": "abc", "price": 12000, "currency": "USD", "mileage": 50000,
+                "mileage_unit": "mi", "seller": {"account_type": "dealer", "username": "Dealer"},
+                "location": {"name": "Chicago, IL"}, "make": "Toyota", "model": "Corolla"}
+        self.assertEqual(clc.normalize(item)["identity"], "CLC:ABC")
+        item["seller"]["account_type"] = "private"
+        self.assertIsNone(clc.normalize(item))
+        item["seller"]["account_type"] = "dealer"
+        item["currency"] = "CAD"
+        self.assertIsNone(clc.normalize(item))
+
+    def test_cursor_sample_marked_incomplete(self):
+        import argparse
+        import search_clcauto as clc
+        args = argparse.Namespace(location="Chicago", make="", model="", pages=1)
+        with patch.object(clc, "fetch", return_value={"data": [], "next_cursor": "more"}):
+            _, incomplete = clc.search(args)
+        self.assertTrue(incomplete)
+
+if __name__ == "__main__":
+    unittest.main()
